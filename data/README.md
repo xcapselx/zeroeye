@@ -52,3 +52,30 @@ gpg -d backup/tent_production_20240101.sql.gz | gunzip | psql -h localhost tent_
 ```
 
 The GPG key ID is stored in the team vault under `secret/database/backup-key`.
+
+## Test Data Generation
+
+The `tools/data_generator.py` script generates deterministic test data using a seed.
+
+### Usage
+
+```bash
+# Generate with default seed (random)
+python3 tools/data_generator.py --output-dir data/test/
+
+# Generate with specific seed for reproducibility
+python3 tools/data_generator.py --seed 42 --output-dir data/test/
+
+# Print the seed so a random run can be reproduced
+python3 tools/data_generator.py --print-seed --output-dir data/test/
+```
+
+### Deterministic Output
+
+When the same seed and arguments are provided, the output is byte-for-byte identical. This is useful for:
+
+- Reproducible test fixtures
+- Benchmark datasets that need consistent inputs
+- Debugging data-dependent issues
+
+The seed is recorded in `_metadata.json` in the output directory. Use `--print-seed` to see the seed on stdout when a random seed is used.
