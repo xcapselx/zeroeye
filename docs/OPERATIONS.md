@@ -310,3 +310,43 @@ Audit logs are retained for 365 days and include:
 2. Update Kubernetes secret: `kubectl create secret tls tot-tls --cert=new.crt --key=new.key -n tent-production --dry-run=client -o yaml | kubectl apply -f -`
 3. Restart services: `kubectl rollout restart deployment -n tent-production`
 4. Verify new certificate: `openssl s_client -connect api.example.com:443 -servername api.example.com`
+
+## Log Aggregator JSONL Output
+
+The legacy log aggregator (`tools/log_aggregator.py`) supports JSONL output for downstream machine-readable consumption.
+
+### Usage
+
+```bash
+python3 tools/log_aggregator.py --input /var/log/app/*.log --output entries.jsonl --format jsonl
+```
+
+### JSONL Record Schema
+
+Each line in the output file is a standalone JSON object with the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `timestamp` | string or null | ISO 8601 timestamp (e.g. `2024-01-15T10:30:00+00:00`). `null` when no timestamp could be extracted. |
+| `level` | string | Log level: `error`, `warn`, `info`, `debug`, `critical`, or `unknown`. |
+| `source` | string | Service or component name. `unknown` when no source could be identified. |
+| `message` | string | The log message text. |
+| `metadata` | object | Additional fields from the parsed entry. Includes `format` (the parser that produced the record: `json`, `text`, or `nginx`) and any parser-specific fields. |
+
+### Ordering
+
+Entries with a parsed timestamp are sorted chronologically (oldest first). Entries without a timestamp appear after all timestamped entries, in the order they were read.
+
+### Warning Records
+
+Lines that cannot be parsed by any parser (JSON, text, or nginx) produce a warning record:
+
+```json
+{"timestamp": null, "level": "warn", "source": "log_aggregator", "message": "Failed to parse line", "metadata": {"raw_line": "<first 500 chars of the unparsed line>"}}
+```
+
+### Supported Input Formats
+
+- **JSON**: One JSON object per line with `timestamp`, `level`, `service`/`logger`/`app`, and `message`/`msg`/`event` fields.
+- **Text**: Plain text lines with a recognizable timestamp (ISO 8601, standard, nginx, or syslog format) or a log level keyword (ERROR, WARN, INFO, DEBUG, etc.).
+- **Nginx**: Nginx access log format with remote addr, request, status code, etc.
