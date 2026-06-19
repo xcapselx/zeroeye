@@ -41,6 +41,12 @@ class TestJSONLOutput(unittest.TestCase):
                 f.write(line + '\n')
         return path
 
+    def _temp_output_path(self, suffix=".jsonl"):
+        fd, path = tempfile.mkstemp(suffix=suffix)
+        os.close(fd)
+        os.unlink(path)
+        return path
+
     def _read_jsonl(self, path):
         records = []
         with open(path, 'r') as f:
@@ -55,7 +61,7 @@ class TestJSONLOutput(unittest.TestCase):
         path = self._write_temp_file(SAMPLE_JSON_LOGS)
         try:
             agg.process_file(path)
-            out = tempfile.mktemp(suffix=".jsonl")
+            out = self._temp_output_path()
             agg.export_jsonl(out)
             records = self._read_jsonl(out)
             self.assertEqual(len(records), 3)
@@ -74,7 +80,7 @@ class TestJSONLOutput(unittest.TestCase):
         path = self._write_temp_file(SAMPLE_TEXT_LOGS)
         try:
             agg.process_file(path)
-            out = tempfile.mktemp(suffix=".jsonl")
+            out = self._temp_output_path()
             agg.export_jsonl(out)
             records = self._read_jsonl(out)
             self.assertEqual(len(records), 3)
@@ -93,7 +99,7 @@ class TestJSONLOutput(unittest.TestCase):
         path = self._write_temp_file(SAMPLE_JSON_LOGS)
         try:
             agg.process_file(path)
-            out = tempfile.mktemp(suffix=".jsonl")
+            out = self._temp_output_path()
             agg.export_jsonl(out)
             records = self._read_jsonl(out)
             timestamps = [r['timestamp'] for r in records if r['timestamp'] is not None]
@@ -109,7 +115,7 @@ class TestJSONLOutput(unittest.TestCase):
         path = self._write_temp_file(lines)
         try:
             agg.process_file(path)
-            out = tempfile.mktemp(suffix=".jsonl")
+            out = self._temp_output_path()
             agg.export_jsonl(out)
             records = self._read_jsonl(out)
             warnings = [r for r in records if r['level'] == 'warn' and r['source'] == 'log_aggregator']
