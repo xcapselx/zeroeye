@@ -97,5 +97,111 @@ class TestDiagnosticDiff(unittest.TestCase):
             load_diagnostic("/nonexistent/path.json")
 
 
+REGRESSION_BASELINE = {
+    "commit": "aaa11111",
+    "total_modules": 2,
+    "passed": 2,
+    "failed": 0,
+    "modules": [
+        {"name": "backend", "status": "PASS", "elapsed_seconds": 5, "artifact": "bin/backend", "output": "ok"},
+        {"name": "frontend", "status": "PASS", "elapsed_seconds": 3, "artifact": "dist/", "output": "ok"},
+    ],
+}
+
+REGRESSION_CURRENT_FAIL = {
+    "commit": "bbb22222",
+    "total_modules": 2,
+    "passed": 1,
+    "failed": 1,
+    "modules": [
+        {"name": "backend", "status": "FAIL", "elapsed_seconds": 5, "artifact": None, "output": "error"},
+        {"name": "frontend", "status": "PASS", "elapsed_seconds": 3, "artifact": "dist/", "output": "ok"},
+    ],
+}
+
+REGRESSION_CURRENT_RECOVERED = {
+    "commit": "ccc33333",
+    "total_modules": 2,
+    "passed": 2,
+    "failed": 0,
+    "modules": [
+        {"name": "backend", "status": "PASS", "elapsed_seconds": 4, "artifact": "bin/backend", "output": "ok"},
+        {"name": "frontend", "status": "PASS", "elapsed_seconds": 3, "artifact": "dist/", "output": "ok"},
+    ],
+}
+
+
+class TestRegressionGate(unittest.TestCase):
+    """Test --fail-on-regression mode."""
+
+    def test_detects_pass_to_fail_regression(self):
+        from diagnostic_diff import detect_regressions
+        result = diff_diagnostics(REGRESSION_BASELINE, REGRESSION_CURRENT_FAIL)
+        regressions = detect_regressions(result)
+        self.assertEqual(len(regressions), 1)
+        self.assertEqual(regressions[0]["module"], "backend")
+        self.assertEqual(regressions[0]["baseline_status"], "PASS")
+        self.assertEqual(regressions[0]["current_status"], "FAIL")
+
+    def test_no_regression_when_fail_to_pass(self):
+        from diagnostic_diff import detect_regressions
+        result = diff_diagnostics(REGRESSION_CURRENT_FAIL, REGRESSION_CURRENT_RECOVERED)
+        regressions = detect_regressions(result)
+        self.assertEqual(len(regressions), 0)
+
+    def test_no_regression_when_unchanged_failure(self):
+        from diagnostic_diff import detect_regressions
+        result = diff_diagnostics(REGRESSION_CURRENT_FAIL, REGRESSION_CURRENT_FAIL)
+        regressions = detect_regressions(result)
+        self.assertEqual(len(regressions), 0)
+
+    def test_no_regression_when_identical(self):
+        from diagnostic_diff import detect_regressions
+        result = diff_diagnostics(REGRESSION_BASELINE, REGRESSION_BASELINE)
+        regressions = detect_regressions(result)
+        self.assertEqual(len(regressions), 0)
+
+    def test_fail_on_regression_exits_nonzero(self):
+        import subprocess
+        import tempfile
+        import os
+        fd1, p1 = tempfile.mkstemp(suffix=".json")
+        fd2, p2 = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd1, "w") as f:
+            json.dump(REGRESSION_BASELINE, f)
+        with os.fdopen(fd2, "w") as f:
+            json.dump(REGRESSION_CURRENT_FAIL, f)
+        try:
+            result = subprocess.run(
+                [sys.executable, "tools/diagnostic_diff.py", p1, p2, "--fail-on-regression"],
+                capture_output=True, text=True, cwd=str(Path(__file__).resolve().parent.parent)
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Regressions Detected", result.stdout)
+        finally:
+            os.unlink(p1)
+            os.unlink(p2)
+
+    def test_fail_on_regression_exits_zero_when_no_regression(self):
+        import subprocess
+        import tempfile
+        import os
+        fd1, p1 = tempfile.mkstemp(suffix=".json")
+        fd2, p2 = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd1, "w") as f:
+            json.dump(REGRESSION_CURRENT_FAIL, f)
+        with os.fdopen(fd2, "w") as f:
+            json.dump(REGRESSION_CURRENT_RECOVERED, f)
+        try:
+            result = subprocess.run(
+                [sys.executable, "tools/diagnostic_diff.py", p1, p2, "--fail-on-regression"],
+                capture_output=True, text=True, cwd=str(Path(__file__).resolve().parent.parent)
+            )
+            self.assertEqual(result.returncode, 0)
+        finally:
+            os.unlink(p1)
+            os.unlink(p2)
+
+
 if __name__ == "__main__":
     unittest.main()

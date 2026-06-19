@@ -132,12 +132,37 @@ def render_text(result: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def detect_regressions(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Detect regressions from pass to fail/error/missing in module statuses."""
+    regressions: list[dict[str, Any]] = []
+    for c in result.get("changes", []):
+        field = c.get("field", "")
+        if not field.startswith("module."):
+            continue
+        if ".status" not in field:
+            continue
+        baseline_val = str(c.get("baseline", "")).upper()
+        current_val = str(c.get("current", "")).upper()
+        pass_states = {"PASS", "OK"}
+        fail_states = {"FAIL", "ERROR", "MISSING", "NONE"}
+        if baseline_val in pass_states and current_val in fail_states:
+            module_name = field.replace("module.", "").replace(".status", "")
+            regressions.append({
+                "module": module_name,
+                "baseline_status": c.get("baseline"),
+                "current_status": c.get("current"),
+                "field": field,
+            })
+    return regressions
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Diff two build diagnostic JSON files.")
     parser.add_argument("baseline", help="Baseline diagnostic JSON file path")
     parser.add_argument("current", help="Current diagnostic JSON file path")
     parser.add_argument("--json", action="store_true", help="Output as JSON instead of Markdown")
     parser.add_argument("--summary", action="store_true", help="Output only the summary section")
+    parser.add_argument("--fail-on-regression", action="store_true", help="Exit non-zero when module status changes from pass to fail/error/missing")
     args = parser.parse_args(argv)
 
     try:
@@ -149,13 +174,26 @@ def main(argv: list[str] | None = None) -> int:
 
     result = diff_diagnostics(baseline, current)
 
+    if args.fail_on_regression:
+        regressions = detect_regressions(result)
+        result["regressions"] = regressions
+        result["summary"]["regression_count"] = len(regressions)
+
     if args.json:
         print(json.dumps(result, indent=2, default=str))
     elif args.summary:
         print(json.dumps(result["summary"], indent=2, default=str))
     else:
         print(render_text(result), end="")
+        if args.fail_on_regression and result.get("regressions"):
+            print("\n## Regressions Detected\n")
+            for r in result["regressions"]:
+                print(f"- {r['module']}: {r['baseline_status']} -> {r['current_status']}")
 
+    if args.fail_on_regression:
+        regressions = result.get("regressions", [])
+        if regressions:
+            return 1
     return 0
 
 
