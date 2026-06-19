@@ -250,15 +250,16 @@ class LogAggregator:
             if entry:
                 self.entries.append(entry)
                 ts = entry.get('timestamp')
-                if ts:
+                if ts is not None:
                     if isinstance(ts, str):
                         try:
                             dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
                             ts = int(dt.timestamp())
                             entry['timestamp'] = ts
                         except (ValueError, TypeError):
+                            entry['timestamp'] = None
                             ts = None
-                    if ts and isinstance(ts, (int, float)):
+                    if ts is not None and isinstance(ts, (int, float)):
                         hour = datetime.fromtimestamp(ts, tz=timezone.utc).strftime('%Y-%m-%dT%H:00')
                         self.hourly_counts[hour] += 1
                 level = entry.get('level', 'unknown').lower()
