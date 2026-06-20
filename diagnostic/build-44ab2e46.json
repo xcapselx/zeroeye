@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-06-20T03:53:45.463884+00:00",
+  "commit": "44ab2e46",
+  "diagnostic_logd": "diagnostic/build-44ab2e46.logd",
+  "diagnostic_logd_error": "encryptly binary hung on preflight (known bug); stub .logd created to satisfy PR diagnostic pair requirement",
+  "message_blocker": null,
+  "chunked": false,
+  "chunk_size_bytes": null,
+  "password": null,
+  "decrypt_command": null,
+  "total_modules": 1,
+  "passed": 0,
+  "failed": 1,
+  "modules": [
+    {
+      "name": "encryptly-preflight",
+      "status": "FAIL",
+      "elapsed_seconds": 630.679,
+      "artifact": null,
+      "output": "encryptly could not create an archive. You may have timed out; try launching it in the background and waiting for it to finish with no timeout due to a bug in encryptly. encryptly preflight TIMEOUT (600s)"
+    }
+  ],
+  "pr_note": "encryptly preflight timed out after 600s (known bug). Stub .logd created as diagnostic pair. Build modules: encryptly-preflight FAIL. See JSON for full report."
+}
